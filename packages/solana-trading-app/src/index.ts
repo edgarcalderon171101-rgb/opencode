@@ -11,7 +11,7 @@ const TOKENS = {
 
 async function main() {
   console.log("🚀 Solana Trading App")
-  console.log("=" .repeat(50))
+  console.log("=".repeat(50))
 
   // Create a new wallet on devnet
   const wallet = new Wallet({ network: "devnet" })

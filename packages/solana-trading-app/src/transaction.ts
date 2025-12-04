@@ -48,7 +48,7 @@ export class TransactionBuilder {
       const transaction = this.build()
       // Mock transaction execution
       console.log(`Executing transaction with ${transaction.instructions.length} instructions...`)
-      const signature = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const signature = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
 
       return {
         signature,
@@ -72,7 +72,7 @@ export async function sendTransaction(
   try {
     // Mock transaction sending
     console.log(`Sending transaction with ${signers.length} signers...`)
-    const signature = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const signature = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
 
     return {
       signature,
