@@ -14,14 +14,14 @@ Scope: high-level architecture only. No executable code or automated transfers a
 ### 3) Credit System (Compliant by Design)
 - Credits are internal points: earned through usage/contribution/activity; used for access, priority, or rewards.
 - Credits are **not** securities, **not** promises of profit, and **not** automatically redeemable.
-- Admin controls supply, minting rights, and optional liquidity; withdrawals are capped to 50% of supply.
+- Admin controls supply, minting rights, and optional liquidity; withdrawals default to a 50% cap to preserve stability and can be tightened by policy.
 - Value mapping (tokens/rewards/external exchanges) is optional, happens outside the core app, and is off by default to stay platform-safe.
 
 ### 4) Automated AI Operations
 - Multi-AI collaboration for code generation, review, refactor, testing, and safety checks.
 - Optional web-search mode for validation and side-by-side comparisons to improve decisions.
 - Terminal and browser surfaces are both supported for admin control.
-- Commands flow through intent detection, clarification, safety filtering, and execution planning; unclear requests trigger minimal clarification.
+- Commands flow through intent detection, clarification, safety filtering, and execution planning; unclear requests trigger a single, concise clarification prompt.
 
 ### 5) Compliance, Safety, and Platform Alignment
 - Designed to avoid GitHub/OpenAI policy violations and legal exposure.
@@ -61,4 +61,4 @@ After deployment and API key entry, the system enters Admin Configuration Mode a
 6. Credits enabled safely (if chosen).
 7. AI ecosystem activates (branches report to OpenAI).
 8. System runs autonomously within safety rails.
-9. Value features remain optional and require admin confirmation for any real transfer.
+9. Value features remain optional and require admin confirmation for any value transfer (on/off-chain or external settlement).
