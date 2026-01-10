@@ -6,7 +6,7 @@ Scope: high-level operating model; no executable code or automated transfers.
 - System unlocks only with valid API keys held by admins.
 - All AI workflows, configurations, and executions require admin authentication.
 
-### 2) Codespace Integration
+### 2) Codespaces Integration
 - Runs in any codespace-like environment (including mobile/Android shells) as a sandbox.
 - Allows AI-driven build/modify/manage of code inside that sandbox without external dependencies.
 
