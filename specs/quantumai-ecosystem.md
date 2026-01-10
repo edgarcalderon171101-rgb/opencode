@@ -13,6 +13,7 @@ Scope: high-level operating model; no executable code or automated transfers.
 ### 3) Integrated AI Browser and Search
 - Built-in search/browser surface for in-environment discovery, validation, and side-by-side comparisons.
 - No reliance on external browsers; results stay inside the controlled workspace.
+- Focus is on assembling and configuring existing AI modules/repos already present in the codespace; minimal new development is expected.
 
 ### 4) Automated Code Creation and Terminal Interaction
 - AI can scaffold projects, create files, and issue terminal commands.
