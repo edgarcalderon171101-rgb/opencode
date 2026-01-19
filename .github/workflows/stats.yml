@@ -5,9 +5,12 @@ on:
     - cron: "0 12 * * *" # Run daily at 12:00 UTC
   workflow_dispatch: # Allow manual trigger
 
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
   stats:
-    runs-on: ubuntu-latest
+    if: github.repository == 'anomalyco/opencode'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write
 
@@ -16,9 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+        uses: ./.github/actions/setup-bun
 
       - name: Run stats script
         run: bun script/stats.ts

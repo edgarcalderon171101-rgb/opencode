@@ -23,15 +23,19 @@ export function activate(context: vscode.ExtensionContext) {
 
   let addFilepathDisposable = vscode.commands.registerCommand("opencode.addFilepathToTerminal", async () => {
     const fileRef = getActiveFile()
-    if (!fileRef) return
+    if (!fileRef) {
+      return
+    }
 
     const terminal = vscode.window.activeTerminal
-    if (!terminal) return
+    if (!terminal) {
+      return
+    }
 
     if (terminal.name === TERMINAL_NAME) {
       // @ts-ignore
       const port = terminal.creationOptions.env?.["_EXTENSION_OPENCODE_PORT"]
-      port ? await appendPrompt(parseInt(port), fileRef) : terminal.sendText(fileRef)
+      port ? await appendPrompt(parseInt(port), fileRef) : terminal.sendText(fileRef, false)
       terminal.show()
     }
   })
@@ -53,14 +57,17 @@ export function activate(context: vscode.ExtensionContext) {
       },
       env: {
         _EXTENSION_OPENCODE_PORT: port.toString(),
+        OPENCODE_CALLER: "vscode",
       },
     })
 
     terminal.show()
-    terminal.sendText(`OPENCODE_CALLER=vscode opencode --port ${port}`)
+    terminal.sendText(`opencode --port ${port}`)
 
     const fileRef = getActiveFile()
-    if (!fileRef) return
+    if (!fileRef) {
+      return
+    }
 
     // Wait for the terminal to be ready
     let tries = 10
@@ -95,11 +102,15 @@ export function activate(context: vscode.ExtensionContext) {
 
   function getActiveFile() {
     const activeEditor = vscode.window.activeTextEditor
-    if (!activeEditor) return
+    if (!activeEditor) {
+      return
+    }
 
     const document = activeEditor.document
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri)
-    if (!workspaceFolder) return
+    if (!workspaceFolder) {
+      return
+    }
 
     // Get the relative path from workspace root
     const relativePath = vscode.workspace.asRelativePath(document.uri)

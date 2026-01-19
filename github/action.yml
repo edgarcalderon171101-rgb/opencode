@@ -6,38 +6,69 @@ branding:
 
 inputs:
   model:
-    description: "The model to use with opencode. Takes the format of `provider/model`."
+    description: "Model to use"
     required: true
 
-  share:
-    description: "Whether to share the opencode session. Defaults to true for public repositories."
+  agent:
+    description: "Agent to use. Must be a primary agent. Falls back to default_agent from config or 'build' if not found."
     required: false
 
-  token:
-    description: "Optional GitHub access token for performing operations such as creating comments, committing changes, and opening pull requests. Defaults to the installation access token from the opencode GitHub App."
+  share:
+    description: "Share the opencode session (defaults to true for public repos)"
+    required: false
+
+  prompt:
+    description: "Custom prompt to override the default prompt"
+    required: false
+
+  use_github_token:
+    description: "Use GITHUB_TOKEN directly instead of OpenCode App token exchange. When true, skips OIDC and uses the GITHUB_TOKEN env var."
+    required: false
+    default: "false"
+
+  mentions:
+    description: "Comma-separated list of trigger phrases (case-insensitive). Defaults to '/opencode,/oc'"
+    required: false
+
+  oidc_base_url:
+    description: "Base URL for OIDC token exchange API. Only required when running a custom GitHub App install. Defaults to https://api.opencode.ai"
     required: false
 
 runs:
   using: "composite"
   steps:
+    - name: Get opencode version
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(curl -sf https://api.github.com/repos/anomalyco/opencode/releases/latest | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
+        echo "version=${VERSION:-latest}" >> $GITHUB_OUTPUT
+
+    - name: Cache opencode
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.opencode/bin
+        key: opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.version }}
+
     - name: Install opencode
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: curl -fsSL https://opencode.ai/install | bash
 
-    - name: Install bun
+    - name: Add opencode to PATH
       shell: bash
-      run: npm install -g bun
-
-    - name: Install dependencies
-      shell: bash
-      run: |
-        cd ${GITHUB_ACTION_PATH}
-        bun install
+      run: echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 
     - name: Run opencode
       shell: bash
-      run: bun ${GITHUB_ACTION_PATH}/index.ts
+      id: run_opencode
+      run: opencode github run
       env:
         MODEL: ${{ inputs.model }}
+        AGENT: ${{ inputs.agent }}
         SHARE: ${{ inputs.share }}
-        TOKEN: ${{ inputs.token }}
+        PROMPT: ${{ inputs.prompt }}
+        USE_GITHUB_TOKEN: ${{ inputs.use_github_token }}
+        MENTIONS: ${{ inputs.mentions }}
+        OIDC_BASE_URL: ${{ inputs.oidc_base_url }}

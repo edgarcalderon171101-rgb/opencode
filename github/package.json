@@ -3,8 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "catalog:"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -13,7 +14,7 @@
     "@actions/core": "1.11.1",
     "@actions/github": "6.0.1",
     "@octokit/graphql": "9.0.1",
-    "@octokit/rest": "22.0.0",
-    "@opencode-ai/sdk": "0.5.4"
+    "@octokit/rest": "catalog:",
+    "@opencode-ai/sdk": "workspace:*"
   }
 }

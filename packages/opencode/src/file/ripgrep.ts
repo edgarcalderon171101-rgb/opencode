@@ -2,14 +2,16 @@
 import path from "path"
 import { Global } from "../global"
 import fs from "fs/promises"
-import { z } from "zod"
-import { NamedError } from "../util/error"
+import z from "zod"
+import { NamedError } from "@opencode-ai/util/error"
 import { lazy } from "../util/lazy"
 import { $ } from "bun"
-import { Fzf } from "./fzf"
+
 import { ZipReader, BlobReader, BlobWriter } from "@zip.js/zip.js"
+import { Log } from "@/util/log"
 
 export namespace Ripgrep {
+  const log = Log.create({ service: "ripgrep" })
   const Stats = z.object({
     elapsed: z.object({
       secs: z.number(),
@@ -203,24 +205,69 @@ export namespace Ripgrep {
     return filepath
   }
 
-  export async function files(input: { cwd: string; query?: string; glob?: string[]; limit?: number }) {
-    const commands = [`${$.escape(await filepath())} --files --follow --hidden --glob='!.git/*'`]
-
+  export async function* files(input: {
+    cwd: string
+    glob?: string[]
+    hidden?: boolean
+    follow?: boolean
+    maxDepth?: number
+  }) {
+    const args = [await filepath(), "--files", "--glob=!.git/*"]
+    if (input.follow !== false) args.push("--follow")
+    if (input.hidden !== false) args.push("--hidden")
+    if (input.maxDepth !== undefined) args.push(`--max-depth=${input.maxDepth}`)
     if (input.glob) {
       for (const g of input.glob) {
-        commands[0] += ` --glob='${g}'`
+        args.push(`--glob=${g}`)
       }
     }
 
-    if (input.query) commands.push(`${await Fzf.filepath()} --filter=${input.query}`)
-    if (input.limit) commands.push(`head -n ${input.limit}`)
-    const joined = commands.join(" | ")
-    const result = await $`${{ raw: joined }}`.cwd(input.cwd).nothrow().text()
-    return result.split("\n").filter(Boolean)
+    // Bun.spawn should throw this, but it incorrectly reports that the executable does not exist.
+    // See https://github.com/oven-sh/bun/issues/24012
+    if (!(await fs.stat(input.cwd).catch(() => undefined))?.isDirectory()) {
+      throw Object.assign(new Error(`No such file or directory: '${input.cwd}'`), {
+        code: "ENOENT",
+        errno: -2,
+        path: input.cwd,
+      })
+    }
+
+    const proc = Bun.spawn(args, {
+      cwd: input.cwd,
+      stdout: "pipe",
+      stderr: "ignore",
+      maxBuffer: 1024 * 1024 * 20,
+    })
+
+    const reader = proc.stdout.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        // Handle both Unix (\n) and Windows (\r\n) line endings
+        const lines = buffer.split(/\r?\n/)
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (line) yield line
+        }
+      }
+
+      if (buffer) yield buffer
+    } finally {
+      reader.releaseLock()
+      await proc.exited
+    }
   }
 
   export async function tree(input: { cwd: string; limit?: number }) {
-    const files = await Ripgrep.files({ cwd: input.cwd })
+    log.info("tree", input)
+    const files = await Array.fromAsync(Ripgrep.files({ cwd: input.cwd }))
     interface Node {
       path: string[]
       children: Node[]
@@ -320,8 +367,15 @@ export namespace Ripgrep {
     return lines.join("\n")
   }
 
-  export async function search(input: { cwd: string; pattern: string; glob?: string[]; limit?: number }) {
+  export async function search(input: {
+    cwd: string
+    pattern: string
+    glob?: string[]
+    limit?: number
+    follow?: boolean
+  }) {
     const args = [`${await filepath()}`, "--json", "--hidden", "--glob='!.git/*'"]
+    if (input.follow !== false) args.push("--follow")
 
     if (input.glob) {
       for (const g of input.glob) {
@@ -333,6 +387,7 @@ export namespace Ripgrep {
       args.push(`--max-count=${input.limit}`)
     }
 
+    args.push("--")
     args.push(input.pattern)
 
     const command = args.join(" ")
@@ -341,7 +396,8 @@ export namespace Ripgrep {
       return []
     }
 
-    const lines = result.text().trim().split("\n").filter(Boolean)
+    // Handle both Unix (\n) and Windows (\r\n) line endings
+    const lines = result.text().trim().split(/\r?\n/).filter(Boolean)
     // Parse JSON lines from ripgrep output
 
     return lines

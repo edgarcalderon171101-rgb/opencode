@@ -1,9 +1,13 @@
-import { z } from "zod"
+import z from "zod"
 import { Tool } from "./tool"
 import { Ripgrep } from "../file/ripgrep"
 
 import DESCRIPTION from "./grep.txt"
 import { Instance } from "../project/instance"
+import path from "path"
+import { assertExternalDirectory } from "./external-directory"
+
+const MAX_LINE_LENGTH = 2000
 
 export const GrepTool = Tool.define("grep", {
   description: DESCRIPTION,
@@ -12,15 +16,36 @@ export const GrepTool = Tool.define("grep", {
     path: z.string().optional().describe("The directory to search in. Defaults to the current working directory."),
     include: z.string().optional().describe('File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")'),
   }),
-  async execute(params) {
+  async execute(params, ctx) {
     if (!params.pattern) {
       throw new Error("pattern is required")
     }
 
-    const searchPath = params.path || Instance.directory
+    await ctx.ask({
+      permission: "grep",
+      patterns: [params.pattern],
+      always: ["*"],
+      metadata: {
+        pattern: params.pattern,
+        path: params.path,
+        include: params.include,
+      },
+    })
+
+    let searchPath = params.path ?? Instance.directory
+    searchPath = path.isAbsolute(searchPath) ? searchPath : path.resolve(Instance.directory, searchPath)
+    await assertExternalDirectory(ctx, searchPath, { kind: "directory" })
 
     const rgPath = await Ripgrep.filepath()
-    const args = ["-n", params.pattern]
+    const args = [
+      "-nH",
+      "--hidden",
+      "--follow",
+      "--no-messages",
+      "--field-match-separator=|",
+      "--regexp",
+      params.pattern,
+    ]
     if (params.include) {
       args.push("--glob", params.include)
     }
@@ -35,7 +60,10 @@ export const GrepTool = Tool.define("grep", {
     const errorOutput = await new Response(proc.stderr).text()
     const exitCode = await proc.exited
 
-    if (exitCode === 1) {
+    // Exit codes: 0 = matches found, 1 = no matches, 2 = errors (but may still have matches)
+    // With --no-messages, we suppress error output but still get exit code 2 for broken symlinks etc.
+    // Only fail if exit code is 2 AND no output was produced
+    if (exitCode === 1 || (exitCode === 2 && !output.trim())) {
       return {
         title: params.pattern,
         metadata: { matches: 0, truncated: false },
@@ -43,21 +71,24 @@ export const GrepTool = Tool.define("grep", {
       }
     }
 
-    if (exitCode !== 0) {
+    if (exitCode !== 0 && exitCode !== 2) {
       throw new Error(`ripgrep failed: ${errorOutput}`)
     }
 
-    const lines = output.trim().split("\n")
+    const hasErrors = exitCode === 2
+
+    // Handle both Unix (\n) and Windows (\r\n) line endings
+    const lines = output.trim().split(/\r?\n/)
     const matches = []
 
     for (const line of lines) {
       if (!line) continue
 
-      const [filePath, lineNumStr, ...lineTextParts] = line.split(":")
+      const [filePath, lineNumStr, ...lineTextParts] = line.split("|")
       if (!filePath || !lineNumStr || lineTextParts.length === 0) continue
 
       const lineNum = parseInt(lineNumStr, 10)
-      const lineText = lineTextParts.join(":")
+      const lineText = lineTextParts.join("|")
 
       const file = Bun.file(filePath)
       const stats = await file.stat().catch(() => null)
@@ -96,12 +127,19 @@ export const GrepTool = Tool.define("grep", {
         currentFile = match.path
         outputLines.push(`${match.path}:`)
       }
-      outputLines.push(`  Line ${match.lineNum}: ${match.lineText}`)
+      const truncatedLineText =
+        match.lineText.length > MAX_LINE_LENGTH ? match.lineText.substring(0, MAX_LINE_LENGTH) + "..." : match.lineText
+      outputLines.push(`  Line ${match.lineNum}: ${truncatedLineText}`)
     }
 
     if (truncated) {
       outputLines.push("")
       outputLines.push("(Results are truncated. Consider using a more specific path or pattern.)")
+    }
+
+    if (hasErrors) {
+      outputLines.push("")
+      outputLines.push("(Some paths were inaccessible and skipped)")
     }
 
     return {
